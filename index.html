@@ -118,11 +118,14 @@ const firebaseConfig = {
   let sendTimestamp = null;
   let recaptchaVerifier = null;
 
-  function setupRecaptcha() {
-   recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-  size: 'invisible'
-});
+function setupRecaptcha() {
+  if (recaptchaVerifier) {
+    recaptchaVerifier.clear();
   }
+  recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+    size: 'invisible'
+  });
+}
   setupRecaptcha();
 
   function showStatus(message, type) {
