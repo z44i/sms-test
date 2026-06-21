@@ -119,9 +119,9 @@ const firebaseConfig = {
   let recaptchaVerifier = null;
 
   function setupRecaptcha() {
-    recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-      size: 'normal'
-    });
+   recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+  size: 'invisible'
+});
   }
   setupRecaptcha();
 
