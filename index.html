@@ -99,33 +99,43 @@
 
 <script>
   // =====================================================
-  // TODO: ضع بيانات مشروعك هنا
-  // تحصل عليها من: Firebase Console -> Project Settings -> General -> Your apps -> Web app
-  // إذا ما عندك "Web app" بمشروعك، أضف وحدة جديدة (أيقونة </>) من نفس الصفحة
+  // بيانات مشروع Firebase
   // =====================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyDFnkv0Y-ER_EdhQf0mqP4--CGV0P8ZHaY",
-  authDomain: "sms-test-5c2bf.firebaseapp.com",
-  projectId: "sms-test-5c2bf",
-  storageBucket: "sms-test-5c2bf.firebasestorage.app",
-  messagingSenderId: "396439130047",
-  appId: "1:396439130047:web:36b20b20e7c911329d9b0a",
-  measurementId: "G-7H29FF2SGQ"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyDFnkv0Y-ER_EdhQf0mqP4--CGV0P8ZHaY",
+    authDomain: "sms-test-5c2bf.firebaseapp.com",
+    projectId: "sms-test-5c2bf",
+    storageBucket: "sms-test-5c2bf.firebasestorage.app",
+    messagingSenderId: "396439130047",
+    appId: "1:396439130047:web:36b20b20e7c911329d9b0a",
+    measurementId: "G-7H29FF2SGQ"
+  };
+
   firebase.initializeApp(firebaseConfig);
 
   let confirmationResult = null;
   let sendTimestamp = null;
   let recaptchaVerifier = null;
 
-function setupRecaptcha() {
-  if (recaptchaVerifier) {
-    recaptchaVerifier.clear();
+  /**
+   * تنشئ verifier جديد فقط عند الحاجة الحقيقية
+   * (تحميل الصفحة الأول أو الضغط على "رقم جديد")
+   * تمسح القديم بشكل كامل (من الذاكرة ومن الـ DOM) قبل إنشاء الجديد
+   * هذا يمنع خطأ "reCAPTCHA has already been rendered in this element"
+   */
+  function setupRecaptcha() {
+    try {
+      if (recaptchaVerifier) {
+        recaptchaVerifier.clear();
+      }
+    } catch (e) {
+      console.warn('تعذر مسح reCAPTCHA القديمة:', e);
+    }
+    document.getElementById('recaptcha-container').innerHTML = '';
+    recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+      size: 'invisible'
+    });
   }
-  recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-    size: 'invisible'
-  });
-}
   setupRecaptcha();
 
   function showStatus(message, type) {
@@ -164,10 +174,11 @@ function setupRecaptcha() {
         addLog(phone, '📤 تم إرسال الطلب بنجاح');
       })
       .catch((error) => {
-        showStatus('❌ فشل الإرسال: ' + error.message, 'error');
-        addLog(phone, '❌ فشل الإرسال: ' + error.code);
+        showStatus('❌ فشل الإرسال: ' + (error.message || error.code || 'خطأ غير معروف'), 'error');
+        addLog(phone, '❌ فشل الإرسال: ' + (error.code || 'unknown'));
         document.getElementById('sendBtn').disabled = false;
-        setupRecaptcha();
+        // ملاحظة: لا نعيد إنشاء reCAPTCHA هنا لتجنب تعارض "already been rendered"
+        // نفس الـ verifier يبقى صالح لإعادة المحاولة
       });
   }
 
@@ -189,8 +200,8 @@ function setupRecaptcha() {
         document.getElementById('verifyBtn').disabled = false;
       })
       .catch((error) => {
-        showStatus('❌ الكود غير صحيح أو انتهت صلاحيته: ' + error.message, 'error');
-        addLog(phone, '❌ فشل التحقق: ' + error.code);
+        showStatus('❌ الكود غير صحيح أو انتهت صلاحيته: ' + (error.message || error.code), 'error');
+        addLog(phone, '❌ فشل التحقق: ' + (error.code || 'unknown'));
         document.getElementById('verifyBtn').disabled = false;
       });
   }
