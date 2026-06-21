@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فحص توصيل SMS - Firebase</title>
+<style>
+  body {
+    font-family: Tahoma, Arial, sans-serif;
+    background: #f5f5f5;
+    margin: 0;
+    padding: 20px;
+    direction: rtl;
+  }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 400px;
+    margin: 0 auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  h2 { text-align: center; color: #333; }
+  input {
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 8px;
+    background: #1976d2;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  button:disabled { background: #aaa; }
+  .status {
+    margin-top: 15px;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    display: none;
+  }
+  .success { background: #e8f5e9; color: #2e7d32; }
+  .error { background: #ffebee; color: #c62828; }
+  .pending { background: #fff3e0; color: #e65100; }
+  .log {
+    margin-top: 20px;
+    font-size: 13px;
+    max-height: 200px;
+    overflow-y: auto;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+  }
+  .log-item {
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  #recaptcha-container { margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h2>📡 فحص توصيل SMS بالعراق</h2>
+
+  <div id="step-phone">
+    <input type="tel" id="phoneInput" placeholder="+9647XXXXXXXXX" />
+    <div id="recaptcha-container"></div>
+    <button id="sendBtn" onclick="sendCode()">إرسال الكود</button>
+  </div>
+
+  <div id="step-code" style="display:none;">
+    <input type="text" id="codeInput" placeholder="ادخل الكود" maxlength="6" />
+    <button id="verifyBtn" onclick="verifyCode()">تحقق</button>
+    <button onclick="resetForm()" style="background:#777;">رقم جديد</button>
+  </div>
+
+  <div id="status" class="status"></div>
+
+  <div class="log">
+    <strong>سجل المحاولات:</strong>
+    <div id="logList"></div>
+  </div>
+</div>
+
+<!-- Firebase SDK (compat version - أبسط للاستخدام المباشر) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+
+<script>
+  // =====================================================
+  // TODO: ضع بيانات مشروعك هنا
+  // تحصل عليها من: Firebase Console -> Project Settings -> General -> Your apps -> Web app
+  // إذا ما عندك "Web app" بمشروعك، أضف وحدة جديدة (أيقونة </>) من نفس الصفحة
+  // =====================================================
+  const firebaseConfig = {
+  apiKey: "AIzaSyCaZWgittiBqluOymjkDKb3EDAH2bXg8yQ",
+  authDomain: "sms-test11.firebaseapp.com",
+  projectId: "sms-test11",
+  storageBucket: "sms-test11.firebasestorage.app",
+  messagingSenderId: "627570966369",
+  appId: "1:627570966369:web:0ae0c48563d9ba18fe8f20",
+  measurementId: "G-XSHK5Y2WJS"
+};
+
+  firebase.initializeApp(firebaseConfig);
+
+  let confirmationResult = null;
+  let sendTimestamp = null;
+  let recaptchaVerifier = null;
+
+  function setupRecaptcha() {
+    recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+      size: 'normal'
+    });
+  }
+  setupRecaptcha();
+
+  function showStatus(message, type) {
+    const el = document.getElementById('status');
+    el.textContent = message;
+    el.className = 'status ' + type;
+    el.style.display = 'block';
+  }
+
+  function addLog(phone, status, seconds) {
+    const logList = document.getElementById('logList');
+    const item = document.createElement('div');
+    item.className = 'log-item';
+    const time = new Date().toLocaleTimeString('ar-IQ');
+    item.textContent = `${time} | ${phone} | ${status}` + (seconds ? ` | ${seconds} ثانية` : '');
+    logList.prepend(item);
+  }
+
+  function sendCode() {
+    const phone = document.getElementById('phoneInput').value.trim();
+    if (!phone.startsWith('+964')) {
+      showStatus('⚠️ ادخل الرقم بصيغة دولية كاملة، مثال: +9647747032832', 'error');
+      return;
+    }
+
+    document.getElementById('sendBtn').disabled = true;
+    showStatus('⏳ جاري الإرسال...', 'pending');
+    sendTimestamp = Date.now();
+
+    firebase.auth().signInWithPhoneNumber(phone, recaptchaVerifier)
+      .then((result) => {
+        confirmationResult = result;
+        showStatus('✅ تم إرسال الكود! بانتظار وصول الرسالة...', 'pending');
+        document.getElementById('step-phone').style.display = 'none';
+        document.getElementById('step-code').style.display = 'block';
+        addLog(phone, '📤 تم إرسال الطلب بنجاح');
+      })
+      .catch((error) => {
+        showStatus('❌ فشل الإرسال: ' + error.message, 'error');
+        addLog(phone, '❌ فشل الإرسال: ' + error.code);
+        document.getElementById('sendBtn').disabled = false;
+        setupRecaptcha();
+      });
+  }
+
+  function verifyCode() {
+    const code = document.getElementById('codeInput').value.trim();
+    const phone = document.getElementById('phoneInput').value.trim();
+    if (!confirmationResult) {
+      showStatus('⚠️ اطلب كود جديد أولاً', 'error');
+      return;
+    }
+
+    document.getElementById('verifyBtn').disabled = true;
+
+    confirmationResult.confirm(code)
+      .then(() => {
+        const seconds = ((Date.now() - sendTimestamp) / 1000).toFixed(1);
+        showStatus('✅ تم التحقق بنجاح! الرقم يدعم Firebase SMS', 'success');
+        addLog(phone, '✅ نجح التحقق', seconds);
+        document.getElementById('verifyBtn').disabled = false;
+      })
+      .catch((error) => {
+        showStatus('❌ الكود غير صحيح أو انتهت صلاحيته: ' + error.message, 'error');
+        addLog(phone, '❌ فشل التحقق: ' + error.code);
+        document.getElementById('verifyBtn').disabled = false;
+      });
+  }
+
+  function resetForm() {
+    document.getElementById('step-phone').style.display = 'block';
+    document.getElementById('step-code').style.display = 'none';
+    document.getElementById('phoneInput').value = '';
+    document.getElementById('codeInput').value = '';
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('status').style.display = 'none';
+    confirmationResult = null;
+    setupRecaptcha();
+  }
+</script>
+
+</body>
+</html>
